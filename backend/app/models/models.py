@@ -39,7 +39,7 @@ class IngestedItem(Base):
         SAEnum("pending", "processed", "failed", name="ingested_status"),
         default="pending"
     )
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column(JSONB, default=dict)
 
     source = relationship("Source", back_populates="ingested_items")
     intelligence_items = relationship("IntelligenceItem", back_populates="ingested_item")
@@ -124,7 +124,7 @@ class Delivery(Base):
     sent_at = Column(DateTime, default=datetime.utcnow)
     read_at = Column(DateTime)
     action_taken = Column(String(255))
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column(JSONB, default=dict)
 
     customer = relationship("Customer", back_populates="deliveries")
     item = relationship("IntelligenceItem", back_populates="deliveries")

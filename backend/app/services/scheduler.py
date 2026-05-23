@@ -94,7 +94,7 @@ async def _send_weekly_digests():
                             item_id=item["id"],
                             channel="email" if customer.email else "whatsapp",
                             sent_at=datetime.utcnow(),
-                            metadata={"digest_type": "weekly"},
+                            extra_data={"digest_type": "weekly"},
                         )
                         db.add(delivery)
 

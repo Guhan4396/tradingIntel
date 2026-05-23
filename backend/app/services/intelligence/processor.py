@@ -215,7 +215,7 @@ async def process_pending_items(db) -> int:
     for ingested_item in pending_items:
         try:
             source_name = ingested_item.source.name if ingested_item.source else "Unknown"
-            source_url = ingested_item.metadata.get("url", "") if ingested_item.metadata else ""
+            source_url = ingested_item.extra_data.get("url", "") if ingested_item.extra_data else ""
 
             intelligence_data = await process_ingested_item(
                 raw_content=ingested_item.raw_content,

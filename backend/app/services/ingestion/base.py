@@ -52,7 +52,7 @@ class BaseIngester(ABC):
             if source_url and self.source_id:
                 existing_query = select(IngestedItem).where(
                     IngestedItem.source_id == self.source_id,
-                    IngestedItem.metadata["url"].astext == source_url
+                    IngestedItem.extra_data["url"].astext == source_url
                 )
                 existing_result = await db.execute(existing_query)
                 existing = existing_result.scalar_one_or_none()
@@ -66,7 +66,7 @@ class BaseIngester(ABC):
                 raw_content=raw_content[:50000],  # Limit size
                 ingested_at=datetime.utcnow(),
                 status="pending",
-                metadata=metadata,
+                extra_data=metadata,
             )
             db.add(ingested_item)
             saved.append(ingested_item)

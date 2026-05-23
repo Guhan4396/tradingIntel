@@ -136,7 +136,7 @@ async def create_alerts_for_urgent_items(db: AsyncSession) -> int:
                 item_id=item.id,
                 channel="dashboard",
                 sent_at=datetime.utcnow(),
-                metadata={"triggered_by": "matcher", "urgency": item.severity},
+                extra_data={"triggered_by": "matcher", "urgency": item.severity},
             )
             db.add(delivery)
             alerts_created += 1
