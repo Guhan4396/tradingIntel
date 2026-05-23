@@ -91,6 +91,8 @@ class Customer(Base):
         default="pilot"
     )
     created_at = Column(DateTime, default=datetime.utcnow)
+    health_check_token = Column(String(100), unique=True, nullable=True)
+    health_check_data = Column(JSONB, nullable=True)
 
     subscription = relationship("Subscription", back_populates="customer", uselist=False)
     deliveries = relationship("Delivery", back_populates="customer")

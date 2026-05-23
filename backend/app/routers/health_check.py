@@ -2,20 +2,17 @@
 import uuid
 import secrets
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel
+from typing import Optional
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.models import Customer, Subscription, ShipmentCheck
+from app.models.models import Customer, Subscription
 
 router = APIRouter(prefix="/health-check", tags=["health-check"])
-
-# In-memory store for health check tokens (production: use Redis or DB column)
-_health_check_store: dict = {}
 
 
 class HealthCheckRequest(BaseModel):
@@ -25,7 +22,7 @@ class HealthCheckRequest(BaseModel):
     email: Optional[str] = None
     products_exported: str
     top_markets: str
-    turnover_range: str  # "<5 Cr", "5-50 Cr", "50-500 Cr", "500 Cr+"
+    turnover_range: str
 
 
 class HealthCheckResponse(BaseModel):
@@ -39,8 +36,8 @@ async def request_health_check(
     payload: HealthCheckRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Submit a health check request. Creates customer record and returns access token."""
-    # Create customer record
+    token = secrets.token_urlsafe(32)
+
     customer_id = str(uuid.uuid4())
     customer = Customer(
         id=customer_id,
@@ -48,16 +45,16 @@ async def request_health_check(
         company=payload.company,
         whatsapp=payload.whatsapp,
         email=payload.email,
-        vertical_tag="textile_apparel",
+        vertical_tag="trade_export",
         turnover_range=payload.turnover_range,
         status="trial",
         plan="pilot",
         trial_started_at=datetime.utcnow(),
         created_at=datetime.utcnow(),
+        health_check_token=token,
     )
     db.add(customer)
 
-    # Create default subscription
     subscription = Subscription(
         id=str(uuid.uuid4()),
         customer_id=customer_id,
@@ -72,10 +69,6 @@ async def request_health_check(
     )
     db.add(subscription)
 
-    # Generate secure token
-    token = secrets.token_urlsafe(32)
-
-    # Generate the health check report
     from app.services.health_check_generator import generate_health_check
     report_data = await generate_health_check(
         name=payload.name,
@@ -85,14 +78,12 @@ async def request_health_check(
         turnover_range=payload.turnover_range,
     )
 
-    # Store report with token (in production: store in DB)
-    _health_check_store[token] = {
-        "customer_id": customer_id,
+    customer.health_check_data = {
         "report": report_data,
-        "created_at": datetime.utcnow().isoformat(),
         "products_exported": payload.products_exported,
         "top_markets": payload.top_markets,
         "turnover_range": payload.turnover_range,
+        "created_at": datetime.utcnow().isoformat(),
     }
 
     await db.commit()
@@ -109,28 +100,27 @@ async def request_health_check(
 
 @router.get("/{token}")
 async def get_health_check(token: str, db: AsyncSession = Depends(get_db)):
-    """Get health check report by token."""
-    data = _health_check_store.get(token)
-    if not data:
-        raise HTTPException(status_code=404, detail="Health check report not found or expired")
-
-    # Get customer info
     result = await db.execute(
-        select(Customer).where(Customer.id == data["customer_id"])
+        select(Customer).where(Customer.health_check_token == token)
     )
     customer = result.scalar_one_or_none()
+
+    if not customer or not customer.health_check_data:
+        raise HTTPException(status_code=404, detail="Health check report not found or expired")
+
+    data = customer.health_check_data
 
     return {
         "token": token,
         "customer": {
-            "name": customer.name if customer else "",
-            "company": customer.company if customer else "",
-            "status": customer.status if customer else "trial",
-        } if customer else None,
+            "name": customer.name,
+            "company": customer.company,
+            "status": customer.status,
+        },
         "products_exported": data.get("products_exported"),
         "top_markets": data.get("top_markets"),
         "turnover_range": data.get("turnover_range"),
         "report": data["report"],
-        "created_at": data["created_at"],
-        "trial_signup_url": f"/dashboard",
+        "created_at": data.get("created_at"),
+        "trial_signup_url": "/dashboard",
     }
